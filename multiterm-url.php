@@ -1,9 +1,9 @@
 <?php
 /*
-Plugin Name: Multi Tag URL
+Plugin Name: Multi Term URL
 Plugin URI: http://ninnypants.com
-Description: Allow tags urls to contain multiple tags
-Version: 1.0
+Description: Allow urls to contain multiple terms.
+Version: 2.0
 Author: ninnypants
 Author URI: http://ninnypants.com
 License: GPL2
@@ -24,66 +24,68 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-class Multi_Tag_URL {
-	public static $rewrite_rule;
+namespace Plugin\MultiTermUrl;
 
-	public static function get_rewrite_rule() {
-		if ( ! empty( self::$rewrite_rule ) ) {
-			return self::$rewrite_rule;
-		}
+function get_rewrite_rule() {
+	global $wp_rewrite;
 
-		global $wp_rewrite;
+	/**
+	 * What taxonomies have multiterm support.
+	 *
+	 * @var $taxonomies Array of taxonomies with multiterm support.
+	 */
+	$taxonomies = apply_filters( 'multiterm_taxonomies', [ 'post_tag' ] );
 
-		$tax = get_taxonomy( 'post_tag' );
+	if ( empty( $taxonomies ) ) {
+		return;
+	}
 
+	$rewrite_parts = [];
+	foreach ( $taxonomies as $tax ) {
+		$tax = get_taxonomy( $tax );
+		// Support rewrite fronts.
 		$front = '';
-		if ( $tax->rewrite['with_front']  ) {
+		if ( $tax->rewrite['with_front'] ) {
 			$front = ltrim( $wp_rewrite->front, '/' );
 		}
 
-		self::$rewrite_rule = $front . $tax->rewrite['slug'] . '/(.+)/?$';
-
-		return self::$rewrite_rule;
+		$rewrite_parts[] = trailingslashit( $front . $tax->rewrite['slug'] );
 	}
 
-	public static function add_rewrites( $wp_rewrite ) {
-		$rewrite_rule = self::get_rewrite_rule();
-		$new_rules = array();
-		$new_rules[ $rewrite_rule ] = 'index.php?multitag=$matches[1]';
-		$wp_rewrite->rules = array_merge( $new_rules, $wp_rewrite->rules );
-	}
+	return '((?:' . implode( '|', $rewrite_parts ) . ')(?:(?!' . implode( '|', $rewrite_parts ) . ').)+)+?';
+}
 
-	public static function flush_rules() {
-		$rules = get_option( 'rewrite_rules' );
-		$rewrite_rule = self::get_rewrite_rule();
-		if ( ! isset( $rules[ $rewrite_rule ] ) ) {
-			flush_rewrite_rules();
+/**
+ * Process multi term support.
+ *
+ * @param \WP $wp
+ */
+function process_multiterm_url( $wp ) {
+	$pattern = '#' . get_rewrite_rule() . '#ig';
+	if ( preg_match_all( '#' . get_rewrite_rule() . '#i', $wp->request, $matches ) ) {
+		// Map rewrite slugs to taxonomy names.
+		$taxonomies   = get_taxonomies( [ 'public' => true ], 'objects' );
+		$taxonomy_map = [];
+		foreach ( $taxonomies as $tax ) {
+			$taxonomy_map[ $tax->rewrite['slug'] ] = $tax->name;
 		}
 
-	}
-
-	public static function add_multitag_query_var( $vars ) {
-		$vars[] = 'multitag';
-		return $vars;
-	}
-
-	public static function multi_tag( $wp_query ) {
-		$multitag = $wp_query->get( 'multitag' );
-		if ( $wp_query->is_main_query() && ! empty( $multitag ) ) {
-			$tax_query = array(
-				array(
-					'taxonomy' => 'post_tag',
-					'field' => 'slug',
-					'terms' => explode( '/', $multitag ),
-					'operator' => 'AND',
-				),
-			);
-
-			$wp_query->set( 'tax_query', $tax_query );
+		// Build tax query.
+		$tax_query = [
+			'relation' => 'AND',
+		];
+		foreach ( $matches[0] as $term_string ) {
+			$terms        = array_filter( explode( '/', $term_string ) );
+			$rewrite_slug = array_shift( $terms );
+			$tax_query[]  = [
+				'taxonomy' => $taxonomy_map[ $rewrite_slug ],
+				'field'    => 'slug',
+				'terms'    => $terms,
+				'operator' => 'AND',
+			];
 		}
+		$wp->query_vars['tax_query'] = $tax_query;
+		unset( $wp->query_vars['error'] );
 	}
 }
-add_action( 'wp_loaded', array( 'Multi_Tag_URL', 'flush_rules' ) );
-add_filter( 'generate_rewrite_rules', array( 'Multi_Tag_URL', 'add_rewrites' ) );
-add_filter( 'query_vars', array( 'Multi_Tag_URL', 'add_multitag_query_var' ) );
-add_action( 'pre_get_posts', array( 'Multi_Tag_URL', 'multi_tag' ) );
+add_action( 'parse_request', __NAMESPACE__ . '\process_multiterm_url' );
