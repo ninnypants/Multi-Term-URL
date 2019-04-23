@@ -1,0 +1,17 @@
+<phpunit
+	bootstrap="tests/bootstrap.php"
+	backupGlobals="false"
+	colors="true"
+	verbose="true"
+	>
+	<testsuites>
+		<testsuite>
+            <directory suffix="Tests.php">tests</directory>
+		</testsuite>
+	</testsuites>
+	<php>
+		<ini name="error_reporting" value="32767" />
+		<ini name="display_errors" value="1" />
+		<ini name="display_startup_errors" value="1" />
+	</php>
+</phpunit>
