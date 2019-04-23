@@ -26,6 +26,11 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 namespace Plugin\MultiTermUrl;
 
+/**
+ * Generate regular expression to support multiple terms and taxonomies in the url.
+ *
+ * @return string
+ */
 function get_rewrite_rule() {
 	global $wp_rewrite;
 
@@ -37,7 +42,7 @@ function get_rewrite_rule() {
 	$taxonomies = apply_filters( 'multiterm_taxonomies', [ 'post_tag' ] );
 
 	if ( empty( $taxonomies ) ) {
-		return;
+		return '';
 	}
 
 	$rewrite_parts = [];
@@ -52,11 +57,35 @@ function get_rewrite_rule() {
 		$rewrite_parts[] = trailingslashit( $front . $tax->rewrite['slug'] );
 	}
 
+	/**
+	 * Genereates a regular expression simalar to this that will match multiple terms and taxonomies.
+	 *     {@code ((?:tag\/|category\/)(?:(?!tag\/|category\/).)+)+? }
+	 *
+	 * The regular expression will break urls like this:
+	 *     {@code tag/tag1/tag2/category/category1/category2 }
+	 * Into processible chuncks like this:
+	 *     {@code
+	 *         array(1) {
+	 *           [0]=>
+	 *             array(2) {
+	 *               [0]=>
+	 *               string(20) "category/category-1/"
+	 *               [1]=>
+	 *               string(15) "tag/tag-1/tag-2"
+	 *             }
+	 *           }
+	 *         }
+	 *     }
+	 */
 	return '((?:' . implode( '|', $rewrite_parts ) . ')(?:(?!' . implode( '|', $rewrite_parts ) . ').)+)+?';
 }
 
 /**
  * Process multi term support.
+ *
+ * Processes request instead of using rewrites. This is because rewrites
+ * don't support preg_match_all() so they can't match the generalized order
+ * of terms that is supported here.
  *
  * @param \WP $wp
  */
@@ -70,7 +99,7 @@ function process_multiterm_url( $wp ) {
 			$taxonomy_map[ $tax->rewrite['slug'] ] = $tax->name;
 		}
 
-		// Build tax query.
+		// Build tax queries.
 		$tax_query = [
 			'relation' => 'AND',
 		];
@@ -85,7 +114,7 @@ function process_multiterm_url( $wp ) {
 			];
 		}
 		$wp->query_vars['tax_query'] = $tax_query;
-		unset( $wp->query_vars['error'] );
+		unset( $wp->query_vars['error'] );// Make sure it doesn't process as a 404.
 	}
 }
 add_action( 'parse_request', __NAMESPACE__ . '\process_multiterm_url' );
