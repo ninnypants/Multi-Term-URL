@@ -5,15 +5,10 @@
 	verbose="true"
 	>
 	<testsuites>
-		<testsuite name="multiterm-url-tests">
-			<directory suffix=".php">tests/php</directory>
+		<testsuite>
+            <directory suffix="Tests.php">tests</directory>
 		</testsuite>
 	</testsuites>
-	<filter>
-		<whitelist>
-			<directory suffix=".php">.</directory>
-		</whitelist>
-	</filter>
 	<php>
 		<ini name="error_reporting" value="32767" />
 		<ini name="display_errors" value="1" />

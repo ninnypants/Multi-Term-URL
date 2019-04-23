@@ -44,7 +44,6 @@ function bootstrap() {
 
 	// Start up the WP testing environment.
 	require $wp_develop_dir . '/tests/phpunit/includes/bootstrap.php';
-	require_once $plugin_root . '/tests/phpunit/MultiTerm_Url_Tests.php';
 }
 
 /**

@@ -61,8 +61,9 @@ function get_rewrite_rule() {
  * @param \WP $wp
  */
 function process_multiterm_url( $wp ) {
-	$pattern = '#' . get_rewrite_rule() . '#ig';
-	if ( preg_match_all( '#' . get_rewrite_rule() . '#i', $wp->request, $matches ) ) {
+	$pattern = '#' . get_rewrite_rule() . '#i';
+	if ( preg_match_all( $pattern, $wp->request, $matches ) ) {
+
 		// Map rewrite slugs to taxonomy names.
 		$taxonomies   = get_taxonomies( [ 'public' => true ], 'objects' );
 		$taxonomy_map = [];
